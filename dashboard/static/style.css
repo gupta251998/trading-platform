@@ -1,0 +1,259 @@
+/* ---------------------------------------------------------------------
+   Paper Desk — design tokens
+   Subject: a paper-trading terminal. Direction: old exchange ticker
+   board / phosphor CRT ledger, not a generic dark-mode SaaS dashboard.
+   Deliberately warm-amber accent (not acid-green), deep bottle-green
+   black background (not neutral near-black), all numerics in mono.
+   --------------------------------------------------------------------- */
+
+:root {
+  --bg: #0D1210;
+  --panel: #131A17;
+  --panel-raised: #171F1B;
+  --hairline: #23302A;
+  --text: #D8E4DC;
+  --text-muted: #6B7D74;
+  --amber: #E3A857;
+  --gain: #4CAF7D;
+  --loss: #D96C4F;
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+}
+
+/* Subtle CRT scanline texture — restrained, not distracting */
+body {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(216, 228, 220, 0.012) 0px,
+      rgba(216, 228, 220, 0.012) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+}
+
+/* ---------------------------- Masthead ---------------------------- */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 28px clamp(16px, 4vw, 48px) 18px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.masthead-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.masthead-mark {
+  font-family: var(--font-mono);
+  color: var(--amber);
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+}
+
+.masthead h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.masthead-meta {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.dot-sep { margin: 0 8px; opacity: 0.5; }
+
+.masthead-foot {
+  text-align: center;
+  padding: 18px 16px 32px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* ------------------------------ Ticker ------------------------------ */
+/* Signature element: a literal ticker tape of live symbols/prices/status,
+   scrolling continuously — grounded in the subject (a trading desk),
+   not decorative. Respects prefers-reduced-motion. */
+
+.ticker-wrap {
+  border-bottom: 1px solid var(--hairline);
+  background: var(--panel);
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 10px 0;
+}
+
+.ticker-track {
+  display: inline-flex;
+  gap: 36px;
+  animation: scroll-ticker 40s linear infinite;
+  padding-left: 100%;
+}
+
+@keyframes scroll-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; padding-left: 24px; }
+}
+
+.ticker-item {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.ticker-symbol { color: var(--text-muted); }
+
+.ticker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ticker-dot.ok { background: var(--gain); }
+.ticker-dot.fail { background: var(--loss); }
+
+/* ------------------------------- Grid ------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "summary summary"
+    "positions positions"
+    "trades trades";
+  gap: 20px;
+  padding: 28px clamp(16px, 4vw, 48px) 8px;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 340px 1fr;
+    grid-template-areas:
+      "summary positions"
+      "trades  positions";
+  }
+  .panel-summary { grid-area: summary; }
+  .panel-positions { grid-area: positions; }
+  .panel-trades { grid-area: trades; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 20px 22px;
+}
+
+.panel-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+/* ------------------------------ Stats ------------------------------ */
+
+.stat-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.stat-row:last-child { margin-bottom: 0; }
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.stat-value.gain { color: var(--gain); }
+.stat-value.loss { color: var(--loss); }
+
+/* ------------------------------ Tables ------------------------------ */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+thead th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  padding: 0 10px 10px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+tbody td {
+  padding: 10px 10px 10px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+tbody tr:last-child td { border-bottom: none; }
+
+tbody tr:hover td { background: var(--panel-raised); }
+
+.empty-row td {
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.pnl-gain { color: var(--gain); }
+.pnl-loss { color: var(--loss); }
+
+/* Keyboard focus visibility */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}

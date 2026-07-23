@@ -1,0 +1,208 @@
+"""
+Production Scheduler Runner with Approval Queue Integration.
+
+This is the entry point for production trading with:
+- Paper trading OR live trading (configurable)
+- Mandatory approval queue for live orders
+- Risk engine enforcement
+- PostgreSQL persistence
+- Structured logging
+- Prometheus metrics
+
+Usage:
+    # Paper trading (safe, no real money)
+    EXECUTION_MODE=paper python run_scheduler_production.py
+    
+    # Live trading with approvals (requires LIVE_TRADING_ENABLED=true)
+    EXECUTION_MODE=live LIVE_TRADING_ENABLED=true python run_scheduler_production.py
+"""
+
+import logging
+import os
+import signal
+import sys
+from datetime import datetime, timezone
+
+from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.schedulers.blocking import BlockingScheduler
+from dotenv import load_dotenv
+
+from broker.coinbase_advanced import CoinbaseAdvancedBroker
+from broker.mock_broker import MockBroker
+from database.connection import init_db
+from execution.approval_queue import ApprovalQueueManager
+from execution.live_execution import LiveExecutionLayer
+from logging_config import setup_logging
+from notifications.telegram_notifier import TelegramNotifier
+from paper_trading.engine import PaperTradingEngine, PositionSizeConfig
+from risk.engine import RiskEngine
+from scheduler.multi_symbol_scheduler import MultiSymbolScheduler
+from strategy.sma_crossover import SmaCrossoverStrategy
+
+load_dotenv()
+logger = logging.getLogger("run_scheduler_production")
+
+
+def get_broker():
+    """Get broker instance based on EXECUTION_MODE."""
+    execution_mode = os.getenv("EXECUTION_MODE", "paper").lower()
+    live_enabled = os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true"
+    
+    if execution_mode == "paper":
+        logger.info("Using PAPER trading mode (simulated, no real money)")
+        return MockBroker(paper_mode=True, starting_prices={"BTC-USD": 100.0})
+    
+    if execution_mode == "live":
+        if not live_enabled:
+            logger.error(
+                "LIVE trading mode requires LIVE_TRADING_ENABLED=true in .env. "
+                "Set it explicitly to confirm you want real trading."
+            )
+            sys.exit(1)
+        
+        api_key = os.getenv("COINBASE_API_KEY")
+        api_secret = os.getenv("COINBASE_API_SECRET")
+        if not api_key or not api_secret:
+            logger.error("LIVE trading requires COINBASE_API_KEY and COINBASE_API_SECRET")
+            sys.exit(1)
+        
+        logger.critical("WARNING: LIVE trading mode active. Real money at risk.")
+        return CoinbaseAdvancedBroker(api_key=api_key, api_secret=api_secret, paper_mode=False)
+    
+    raise ValueError(f"Unknown EXECUTION_MODE: {execution_mode}")
+
+
+def main() -> None:
+    """Run the production scheduler."""
+    # Setup logging
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    log_format = os.getenv("LOG_FORMAT", "json")
+    setup_logging(log_level, log_format)
+    
+    logger.info("=" * 80)
+    logger.info("TRADING PLATFORM STARTING UP")
+    logger.info("=" * 80)
+    
+    # Initialize database
+    logger.info("Initializing database...")
+    init_db()
+    
+    # Get configuration
+    execution_mode = os.getenv("EXECUTION_MODE", "paper").lower()
+    symbols = [s.strip().upper() for s in os.getenv("SYMBOLS", "BTC-USD,ETH-USD").split(",")]
+    poll_interval = int(os.getenv("POLL_INTERVAL_SECONDS", "300"))
+    starting_cash = float(os.getenv("STARTING_CASH", "10000"))
+    
+    logger.info(f"Execution mode: {execution_mode}")
+    logger.info(f"Symbols: {symbols}")
+    logger.info(f"Poll interval: {poll_interval}s")
+    logger.info(f"Starting cash: ${starting_cash:,.2f}")
+    
+    # Initialize broker
+    broker = get_broker()
+    health = broker.check_health()
+    if not health.connected:
+        logger.error(f"Broker health check failed: {health.message}")
+        sys.exit(1)
+    logger.info(f"Broker connected (latency: {health.latency_ms}ms)")
+    
+    # Initialize risk engine
+    logger.info("Initializing risk engine...")
+    risk_engine = RiskEngine(broker_buying_power=starting_cash)
+    
+    # Initialize approval queue (only used in live mode)
+    approval_queue = None
+    live_execution = None
+    if execution_mode == "live":
+        approval_queue = ApprovalQueueManager(risk_engine)
+        live_execution = LiveExecutionLayer(broker, approval_queue, risk_engine)
+        logger.info("Approval queue initialized for live trading")
+    
+    # Initialize notifier (Telegram)
+    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    telegram_chat = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    notifier = None
+    if telegram_token and telegram_chat:
+        # Telegram notifier (optional)
+    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat = os.getenv("TELEGRAM_CHAT_ID", "")
+    notifier = None
+    if telegram_token and telegram_chat:
+        try:
+            notifier = None  # Telegram disabled
+        except Exception as e:
+            print(f"Telegram error: {e}")
+            notifier = None
+    else:
+        notifier = None
+        logger.info("Telegram notifier enabled")
+    else:
+        logger.info("Telegram notifier disabled (no token/chat_id)")
+    
+    # Initialize strategy and scheduler
+    strategy = SmaCrossoverStrategy(fast_period=10, slow_period=30)
+    runner = MultiSymbolScheduler(
+        broker=broker,
+        strategy=strategy,
+        symbols=symbols,
+        starting_cash=starting_cash,
+        sizing=PositionSizeConfig(risk_per_trade_pct=1.0, max_position_pct=20.0),
+    )
+    
+    if execution_mode == "live":
+        runner.live_execution = live_execution
+        runner.approval_queue = approval_queue
+    
+    if notifier:
+        runner.notifier = notifier
+    
+    # Setup scheduler
+    scheduler = BlockingScheduler(executors={"default": ThreadPoolExecutor(1)})
+    scheduler.add_job(
+        runner.run_full_cycle,
+        trigger="interval",
+        seconds=poll_interval,
+        max_instances=1,
+        coalesce=True,
+        id="paper_trading_cycle",
+    )
+    import datetime as _dt
+    scheduler.modify_job("paper_trading_cycle", next_run_time=_dt.datetime.now())
+    
+    # Graceful shutdown
+    def _graceful_shutdown(signum, frame):
+        logger.warning(f"Received signal {signum} — shutting down gracefully...")
+        
+        # Activate kill switch if live trading
+        if live_execution:
+            logger.critical("Activating kill switch before shutdown")
+            live_execution.activate_kill_switch()
+        
+        scheduler.shutdown(wait=False)
+    
+    signal.signal(signal.SIGINT, _graceful_shutdown)
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
+    
+    logger.info("Scheduler starting. Press Ctrl+C to stop.")
+    logger.info("Dashboard: http://127.0.0.1:8000")
+    if approval_queue:
+        logger.info("Approval queue: http://127.0.0.1:8000/approvals")
+    
+    try:
+        scheduler.start()
+    finally:
+        logger.info("=" * 80)
+        logger.info("FINAL REPORT")
+        logger.info("=" * 80)
+        report = runner.final_report()
+        logger.info(f"Final report: {report}")
+        
+        if execution_mode == "live" and approval_queue:
+            queue_stats = approval_queue.get_approval_queue_stats()
+            logger.info(f"Approval queue stats: {queue_stats}")
+        
+        logger.info("Scheduler stopped.")
+
+
+if __name__ == "__main__":
+    main()

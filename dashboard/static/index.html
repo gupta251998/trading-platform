@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Paper Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <header class="masthead">
+    <div class="masthead-title">
+      <span class="masthead-mark">▲▼</span>
+      <h1>Paper Desk</h1>
+    </div>
+    <div class="masthead-meta">
+      <span id="tick-count">cycle —</span>
+      <span class="dot-sep">·</span>
+      <span id="poll-interval">poll —</span>
+    </div>
+  </header>
+
+  <div class="ticker-wrap" aria-label="Live symbol ticker">
+    <div class="ticker-track" id="ticker-track">
+      <!-- populated by app.js, duplicated once for seamless scroll -->
+    </div>
+  </div>
+
+  <main class="grid">
+
+    <section class="panel panel-summary">
+      <h2 class="panel-title">Portfolio</h2>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-label">Equity</span>
+          <span class="stat-value" id="stat-equity">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Cash</span>
+          <span class="stat-value" id="stat-cash">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Return</span>
+          <span class="stat-value" id="stat-return">—</span>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-label">Open</span>
+          <span class="stat-value" id="stat-open">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Closed</span>
+          <span class="stat-value" id="stat-closed">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Win rate</span>
+          <span class="stat-value" id="stat-winrate">—</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-positions">
+      <h2 class="panel-title">Open positions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Qty</th><th>Entry</th><th>Now</th>
+            <th>Stop</th><th>Target</th><th>Unrealized</th>
+          </tr>
+        </thead>
+        <tbody id="positions-body">
+          <tr class="empty-row"><td colspan="7">No open positions</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel panel-trades">
+      <h2 class="panel-title">Recent closed trades</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Entry</th><th>Exit</th><th>Reason</th><th>PnL</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr class="empty-row"><td colspan="5">No closed trades yet</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <footer class="masthead-foot">
+    <span>Paper trading only — no live orders are placed from this dashboard.</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
