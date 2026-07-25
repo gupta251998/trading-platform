@@ -1,14 +1,9 @@
-"""Multi-Symbol Trading Scheduler"""
-import logging
-from typing import List, Optional
-from datetime import datetime
+"""Multi-Symbol Trading Scheduler — works with real or mock brokers"""
+from datetime import datetime, timezone
 import json
 
-logger = logging.getLogger(__name__)
 
 class MultiSymbolScheduler:
-    """Schedules trading across multiple symbols"""
-    
     def __init__(self, broker, strategy, portfolio, symbols, granularity="ONE_HOUR", candle_limit=100):
         self.broker = broker
         self.strategy = strategy
@@ -17,95 +12,73 @@ class MultiSymbolScheduler:
         self.granularity = granularity
         self.candle_limit = candle_limit
         self.cycle_count = 0
-    
-    def run_full_cycle(self):
-        """Run one complete trading cycle across all symbols"""
-        self.cycle_count += 1
-        
+
+    def _log(self, message, level="INFO"):
         print(json.dumps({
-            "timestamp": datetime.utcnow().isoformat() + "+00:00",
-            "level": "INFO",
-            "message": f"=== Cycle {self.cycle_count} starting ({len(self.symbols)} symbols) ==="
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": level,
+            "message": message
         }))
-        
+
+    def run_full_cycle(self):
+        self.cycle_count += 1
+        self._log(f"=== Cycle {self.cycle_count} starting ({len(self.symbols)} symbols) ===")
+
         for symbol in self.symbols:
             try:
                 self.process_symbol(symbol)
             except Exception as e:
-                print(json.dumps({
-                    "timestamp": datetime.utcnow().isoformat() + "+00:00",
-                    "level": "ERROR",
-                    "message": f"Error processing {symbol}: {e}"
-                }))
-    
+                self._log(f"Error processing {symbol}: {e}", "ERROR")
+
     def process_symbol(self, symbol):
-        """Process a single symbol"""
         try:
-            # Get candles from broker
-            candles = self.broker.get_candles(
-                symbol=symbol,
-                granularity=self.granularity,
-                limit=self.candle_limit
-            )
-            
+            candles = self.broker.get_candles(symbol, granularity=self.granularity, limit=self.candle_limit)
+
             if not candles or len(candles) < 5:
+                self._log(f"{symbol}: not enough candle data ({len(candles) if candles else 0})", "DEBUG")
                 return
-            
-            # Generate signal from strategy
+
             signal = self.strategy.generate_signal(symbol, candles)
-            
+
             if signal:
-                print(json.dumps({
-                    "timestamp": datetime.utcnow().isoformat() + "+00:00",
-                    "level": "INFO",
-                    "message": f"🎯 SIGNAL: {symbol} {signal.direction.value.upper()} @ ${signal.entry_price:.6f} (Confidence: {signal.confidence:.0%})"
-                }))
-                
-                # Execute trade
+                self._log(f"🎯 SIGNAL: {symbol} {signal.direction.value.upper()} @ ${signal.entry_price:.6f} (Confidence: {signal.confidence:.0%})")
                 self.execute_trade(signal)
-        
+
         except Exception as e:
-            print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "+00:00",
-                "level": "ERROR",
-                "message": f"Error in process_symbol({symbol}): {str(e)}"
-            }))
-    
+            self._log(f"Error in process_symbol({symbol}): {e}", "ERROR")
+
     def execute_trade(self, signal):
-        """Execute a trade based on signal"""
         try:
-            if signal.direction.value == "long":
-                position_size = self.portfolio.calculate_position_size(signal.entry_price)
-                self.portfolio.add_position(
+            # Only support LONG entries for spot (no shorting on Coinbase spot)
+            if signal.direction.value != "long":
+                self._log(f"Skipping SHORT signal on {signal.symbol} — spot account can't short", "INFO")
+                return
+
+            position_size_usd = self.portfolio.calculate_position_size(signal.entry_price)
+
+            if hasattr(self.broker, "place_market_order") and not getattr(self.broker, "paper_mode", True):
+                result = self.broker.place_market_order(
                     symbol=signal.symbol,
-                    direction="long",
-                    quantity=position_size,
-                    entry_price=signal.entry_price,
-                    stop_loss=signal.stop_loss,
-                    profit_target=signal.profit_target,
-                    strategy=signal.strategy_name
+                    side="BUY",
+                    quote_size=round(position_size_usd, 2)
                 )
+                if result:
+                    self._log(f"✅ TRADE EXECUTED (LIVE): {signal.symbol} BUY ${position_size_usd:.2f}")
+                else:
+                    self._log(f"❌ Trade failed for {signal.symbol}", "ERROR")
+                    return
             else:
-                position_size = self.portfolio.calculate_position_size(signal.entry_price)
-                self.portfolio.add_position(
-                    symbol=signal.symbol,
-                    direction="short",
-                    quantity=position_size,
-                    entry_price=signal.entry_price,
-                    stop_loss=signal.stop_loss,
-                    profit_target=signal.profit_target,
-                    strategy=signal.strategy_name
-                )
-            
-            print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "+00:00",
-                "level": "INFO",
-                "message": f"✅ TRADE EXECUTED: {signal.symbol} {signal.direction.value.upper()}"
-            }))
-        
+                self._log(f"✅ TRADE EXECUTED (PAPER): {signal.symbol} BUY ${position_size_usd:.2f}")
+
+            self.portfolio.add_position(
+                symbol=signal.symbol,
+                direction="long",
+                quantity=position_size_usd / signal.entry_price,
+                entry_price=signal.entry_price,
+                stop_loss=signal.stop_loss,
+                profit_target=signal.profit_target,
+                strategy=signal.strategy_name
+            )
+
         except Exception as e:
-            print(json.dumps({
-                "timestamp": datetime.utcnow().isoformat() + "+00:00",
-                "level": "ERROR",
-                "message": f"Error executing trade: {str(e)}"
-            }))
+            self._log(f"Error executing trade: {e}", "ERROR")
