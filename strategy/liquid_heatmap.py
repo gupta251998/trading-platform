@@ -2,12 +2,7 @@
 import numpy as np
 from datetime import datetime
 from strategy.base import StrategyBase
-from models.all import TradeCandidate
-from enum import Enum
-
-class Direction(Enum):
-    LONG = "long"
-    SHORT = "short"
+from models.all import TradeCandidate, Direction
 
 class LiquidHeatmapStrategy(StrategyBase):
     def __init__(self):

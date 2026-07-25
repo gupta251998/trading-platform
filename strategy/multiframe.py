@@ -1,12 +1,7 @@
 """Multi-Timeframe Strategy - 88% win rate"""
 import numpy as np
 from strategy.base import StrategyBase
-from models.all import TradeCandidate
-from enum import Enum
-
-class Direction(Enum):
-    LONG = "long"
-    SHORT = "short"
+from models.all import TradeCandidate, Direction
 
 class MultiFrameStrategy(StrategyBase):
     def __init__(self):

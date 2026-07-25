@@ -1,12 +1,7 @@
 """Grid Trading Strategy - 75-85% win rate"""
 import numpy as np
 from strategy.base import StrategyBase
-from models.all import TradeCandidate
-from enum import Enum
-
-class Direction(Enum):
-    LONG = "long"
-    SHORT = "short"
+from models.all import TradeCandidate, Direction
 
 class GridTradingStrategy(StrategyBase):
     def __init__(self, period=50, grid_pct=0.02):
@@ -53,5 +48,4 @@ class GridTradingStrategy(StrategyBase):
                 strategy_name=self.name,
                 risk_reward_ratio=2.5
             )
-        
         return None

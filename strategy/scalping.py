@@ -1,12 +1,7 @@
 """Scalping Strategy - 80%+ win rate"""
 import numpy as np
 from strategy.base import StrategyBase
-from models.all import TradeCandidate
-from enum import Enum
-
-class Direction(Enum):
-    LONG = "long"
-    SHORT = "short"
+from models.all import TradeCandidate, Direction
 
 class ScalpingStrategy(StrategyBase):
     def __init__(self, period=5, rsi_period=9):
