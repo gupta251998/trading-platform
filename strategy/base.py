@@ -1,4 +1,5 @@
 """Base Strategy Class"""
+from models.all import TradeCandidate, Direction
 
 class StrategyBase:
     """Base class for all trading strategies"""
@@ -9,3 +10,6 @@ class StrategyBase:
     def generate_signal(self, symbol, candles):
         """Generate trading signal - override in subclass"""
         return None
+
+# Export for backward compatibility
+__all__ = ['StrategyBase', 'TradeCandidate', 'Direction']
