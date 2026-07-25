@@ -10,3 +10,6 @@ fastapi>=0.68.0
 pydantic>=1.8.0
 python-dateutil>=2.8.2
 pytz>=2021.1
+coinbase-advanced-py
+pyjwt
+cryptography
