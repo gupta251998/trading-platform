@@ -20,8 +20,8 @@ class CoinbaseLiveBroker:
     """Wraps Coinbase Advanced Trade SDK for live account + order operations"""
 
     def __init__(self):
-        api_key = os.getenv("COINBASE_API_KEY")
-        api_secret = os.getenv("COINBASE_API_SECRET")
+        api_key = (os.getenv("COINBASE_API_KEY") or "").strip()
+        api_secret = (os.getenv("COINBASE_API_SECRET") or "").strip()
         if not api_key or not api_secret:
             raise ValueError("COINBASE_API_KEY / COINBASE_API_SECRET not set")
         self.client = RESTClient(api_key=api_key, api_secret=api_secret)
