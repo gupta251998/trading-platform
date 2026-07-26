@@ -65,13 +65,9 @@ def run_scheduler():
         portfolio = PaperPortfolio(starting_cash=starting_cash)
 
         strategies = [
-            GridTradingStrategy(),
             ScalpingStrategy(),
-            LiquidHeatmapStrategy(),
-            MultiFrameStrategy(),
-            SmaCrossoverStrategy(),
-            MeanReversionStrategy(),
         ]
+        log_json("DIAGNOSTIC MODE: single strategy = ScalpingStrategy")
 
         log_json("=" * 80)
         log_json("🔥 ULTIMATE TRADING SYSTEM LOADED")
