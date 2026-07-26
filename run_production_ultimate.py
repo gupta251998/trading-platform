@@ -26,7 +26,7 @@ load_env_file()
 
 def log_json(message, level="INFO"):
     timestamp = datetime.now(timezone.utc).isoformat()
-    print(json.dumps({"timestamp": timestamp, "level": level, "message": message}))
+    print(json.dumps({"timestamp": timestamp, "level": level, "message": message}), flush=True)
 
 
 def run_scheduler():
