@@ -54,6 +54,10 @@ def run_scheduler():
 
         # ✅ REAL BROKER — connects to your actual Coinbase account
         broker = CoinbaseLiveBroker()
+        api_key = os.getenv("COINBASE_API_KEY", "")
+        api_secret = os.getenv("COINBASE_API_SECRET", "")
+        log_json(f"DEBUG: API_KEY length={len(api_key)}, starts={api_key[:20]}, ends={api_key[-15:]}")
+        log_json(f"DEBUG: API_SECRET length={len(api_secret)}, starts={api_secret[:10]}, ends={api_secret[-10:]}")
         usdt_balance = broker.get_usdt_balance()
         log_json(f"💰 Live Coinbase USDT balance: {usdt_balance}")
 
