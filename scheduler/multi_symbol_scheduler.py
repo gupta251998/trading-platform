@@ -58,7 +58,7 @@ class MultiSymbolScheduler:
             available_cash = self.portfolio.cash
             position_size_usd = available_cash * self.max_position_pct
 
-            if position_size_usd < 1.0:
+            if position_size_usd < 0.01:
                 self._log(f"Position size ${position_size_usd:.4f} too small to trade on {signal.symbol}", "INFO")
                 return
 
