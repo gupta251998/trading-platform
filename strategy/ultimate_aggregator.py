@@ -1,51 +1,55 @@
-"""Ultimate Multi-Strategy Aggregator - 80%+ win rate"""
+"""Ultimate Multi-Strategy Aggregator - with diagnostic visibility"""
+import json
+from datetime import datetime, timezone
 
 class UltimateAggregator:
-    """Advanced aggregation for maximum win rate"""
-    
     def __init__(self, strategies):
         self.strategies = strategies
         self.confidence_threshold = 0.80
         self.name = "ultimate_aggregator"
-    
+
+    def _log(self, message):
+        print(json.dumps({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": "DEBUG",
+            "message": message
+        }), flush=True)
+
     def generate_signal(self, symbol, candles):
-        """
-        Get signals from all strategies
-        Only trade if 3+ strategies agree AND high confidence
-        """
         signals = []
         confidences = []
-        
+        fired_strategies = []
+
         for strategy in self.strategies:
             try:
                 signal = strategy.generate_signal(symbol, candles)
                 if signal:
                     signals.append(signal)
                     confidences.append(signal.confidence)
-            except Exception as e:
+                    fired_strategies.append(strategy.name)
+            except Exception:
                 continue
-        
-        # Need AT LEAST 3 strategies to agree
-        if len(signals) < 3:
+
+        if len(signals) == 0:
             return None
-        
-        # Check if all signals agree on direction
+
+        if len(signals) < 3:
+            self._log(f"{symbol}: only {len(signals)}/6 strategies fired ({fired_strategies}) — need 3+")
+            return None
+
         first_direction = signals[0].direction
         agreement_count = sum(1 for s in signals if s.direction == first_direction)
-        
-        # Need 70%+ agreement
+
         if agreement_count < len(signals) * 0.7:
+            self._log(f"{symbol}: {len(signals)} fired but disagree on direction — skipped")
             return None
-        
-        # Average confidence
+
         avg_confidence = sum(confidences) / len(confidences)
-        
-        # Only trade if high confidence (80%+)
+
         if avg_confidence < self.confidence_threshold:
+            self._log(f"{symbol}: {len(signals)}/6 agreed ({fired_strategies}) but confidence {avg_confidence:.0%} < 80% threshold")
             return None
-        
-        # Use most conservative stop/target
+
         best_signal = max(signals, key=lambda s: s.confidence)
         best_signal.confidence = min(avg_confidence, 0.92)
-        
         return best_signal
