@@ -153,3 +153,18 @@ class PaperPortfolio:
             "open_positions": len(self.positions),
             "closed_trades": len(self.closed_trades),
         }
+
+    def register_existing_holding(self, symbol, quantity, fill_price, strategy_name, stop_loss=None, profit_target=None):
+        """Record a position that was already bought outside this portfolio's
+        own cash tracking (e.g. from a prior deploy/run). Does NOT touch self.cash,
+        since the money was already spent in the past."""
+        position = PaperPosition(
+            symbol=symbol,
+            quantity=quantity,
+            avg_entry_price=fill_price,
+            stop_loss=stop_loss,
+            profit_target=profit_target,
+            strategy_name=strategy_name,
+        )
+        self.positions[symbol] = position
+        return position

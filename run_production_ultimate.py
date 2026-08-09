@@ -47,7 +47,7 @@ def reconcile_existing_holdings(broker, portfolio, symbols, log_json):
                     current_price = candles[-1]["close"]
                     stop_loss = current_price * 0.98
                     profit_target = current_price * 1.02
-                    portfolio.open_position(
+                    portfolio.register_existing_holding(
                         symbol=symbol,
                         quantity=qty,
                         fill_price=current_price,
