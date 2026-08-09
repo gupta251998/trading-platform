@@ -1,7 +1,9 @@
-"""Multi-Symbol Trading Scheduler — works with real or mock brokers"""
+"""Multi-Symbol Trading Scheduler — real broker, verified order success, risk guards"""
 import os
 from datetime import datetime, timezone
 import json
+
+from notifications.telegram_notify import send_telegram
 
 
 class MultiSymbolScheduler:
@@ -13,7 +15,11 @@ class MultiSymbolScheduler:
         self.granularity = granularity
         self.candle_limit = candle_limit
         self.cycle_count = 0
-        self.max_position_pct = float(os.getenv("MAX_POSITION_SIZE_PCT", "0.5")) / 100
+
+        # Fixed dollar size per trade - chosen to clear Coinbase's minimum order
+        # size while keeping risk as low as possible on a small account.
+        self.fixed_trade_size_usd = float(os.getenv("FIXED_TRADE_SIZE_USD", "2.00"))
+        self.max_concurrent_positions = int(os.getenv("MAX_CONCURRENT_POSITIONS", "3"))
 
     def _log(self, message, level="INFO"):
         print(json.dumps({
@@ -34,6 +40,14 @@ class MultiSymbolScheduler:
 
     def process_symbol(self, symbol):
         try:
+            # Guard 1: skip if we already hold this symbol
+            if symbol in self.portfolio.positions:
+                return
+
+            # Guard 2: skip if at max concurrent positions
+            if len(self.portfolio.positions) >= self.max_concurrent_positions:
+                return
+
             candles = self.broker.get_candles(symbol, granularity=self.granularity, limit=self.candle_limit)
 
             if not candles or len(candles) < 5:
@@ -56,10 +70,10 @@ class MultiSymbolScheduler:
                 return
 
             available_cash = self.portfolio.cash
-            position_size_usd = available_cash * self.max_position_pct
+            position_size_usd = min(self.fixed_trade_size_usd, available_cash)
 
-            if position_size_usd < 0.01:
-                self._log(f"Position size ${position_size_usd:.4f} too small to trade on {signal.symbol}", "INFO")
+            if position_size_usd < 1.0:
+                self._log(f"Insufficient cash for {signal.symbol}: only ${available_cash:.2f} left", "INFO")
                 return
 
             quantity = position_size_usd / signal.entry_price
@@ -73,11 +87,15 @@ class MultiSymbolScheduler:
                     quote_size=round(position_size_usd, 2)
                 )
                 if not result:
-                    self._log(f"LIVE order failed for {signal.symbol}", "ERROR")
+                    self._log(f"Trade NOT executed for {signal.symbol} - Coinbase rejected the order", "ERROR")
                     return
-                self._log(f"TRADE EXECUTED (LIVE): {signal.symbol} BUY ${position_size_usd:.4f}")
+                self._log(f"TRADE EXECUTED (LIVE, CONFIRMED): {signal.symbol} BUY ${position_size_usd:.2f}")
+                send_telegram(
+                    f"TRADE EXECUTED\nSymbol: {signal.symbol}\nSide: BUY\nAmount: ${position_size_usd:.2f}\n"
+                    f"Entry: ${signal.entry_price:.6f}\nStrategy: {signal.strategy_name}\nConfidence: {signal.confidence:.0%}"
+                )
             else:
-                self._log(f"TRADE EXECUTED (PAPER): {signal.symbol} BUY ${position_size_usd:.4f}")
+                self._log(f"TRADE EXECUTED (PAPER): {signal.symbol} BUY ${position_size_usd:.2f}")
 
             self.portfolio.open_position(
                 symbol=signal.symbol,

@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 
 def load_env_file():
-    """Manually load .env if python-dotenv env vars aren't already set (local dev)"""
     from pathlib import Path
     env_path = Path(__file__).parent / ".env"
     if env_path.exists():
@@ -30,7 +29,7 @@ def log_json(message, level="INFO"):
 
 
 def run_scheduler():
-    log_json("🚀 Starting ULTIMATE trading system...")
+    log_json("Starting trading system...")
     try:
         from scheduler.multi_symbol_scheduler import MultiSymbolScheduler
         from strategy.grid_trading import GridTradingStrategy
@@ -52,28 +51,27 @@ def run_scheduler():
         log_json(f"Live trading enabled: {live_enabled}")
         log_json(f"Trading with: {len(config.scheduler.symbols)} coins")
 
-        # ✅ REAL BROKER — connects to your actual Coinbase account
         broker = CoinbaseLiveBroker()
-        api_key = os.getenv("COINBASE_API_KEY", "")
-        api_secret = os.getenv("COINBASE_API_SECRET", "")
-        log_json(f"DEBUG: API_KEY length={len(api_key)}, starts={api_key[:20]}, ends={api_key[-15:]}")
-        log_json(f"DEBUG: API_SECRET length={len(api_secret)}, starts={api_secret[:10]}, ends={api_secret[-10:]}")
         usdt_balance = broker.get_usdt_balance()
-        log_json(f"💰 Live Coinbase USDT balance: {usdt_balance}")
+        log_json(f"Live Coinbase USDT balance: {usdt_balance}")
 
         starting_cash = usdt_balance if usdt_balance > 0 else config.scheduler.starting_cash
         portfolio = PaperPortfolio(starting_cash=starting_cash)
 
         strategies = [
+            GridTradingStrategy(),
             ScalpingStrategy(),
+            LiquidHeatmapStrategy(),
+            MultiFrameStrategy(),
+            SmaCrossoverStrategy(),
+            MeanReversionStrategy(),
         ]
-        log_json("DIAGNOSTIC MODE: single strategy = ScalpingStrategy")
 
         log_json("=" * 80)
-        log_json("🔥 ULTIMATE TRADING SYSTEM LOADED")
-        log_json(f"✅ {len(strategies)} Strategies")
-        log_json(f"Execution Mode: {execution_mode.upper()}")
-        log_json(f"Live Trading: {live_enabled.upper()}")
+        log_json(f"{len(strategies)} strategies loaded: Grid, Scalping, LiquidHeatmap, MultiFrame, SMA, MeanReversion")
+        log_json(f"Aggregator threshold: 2/6 agreement, 65% confidence")
+        log_json(f"Fixed trade size: ${os.getenv('FIXED_TRADE_SIZE_USD', '2.00')}")
+        log_json(f"Max concurrent positions: {os.getenv('MAX_CONCURRENT_POSITIONS', '3')}")
         log_json("=" * 80)
 
         strategy = UltimateAggregator(strategies)
@@ -85,13 +83,12 @@ def run_scheduler():
             symbols=config.scheduler.symbols,
         )
 
-        log_json("✅ ULTIMATE system running with REAL Coinbase broker...")
+        log_json("System running with REAL Coinbase broker...")
 
         cycle = 0
         while True:
             try:
                 cycle += 1
-                log_json(f"Starting cycle {cycle}...")
                 scheduler.run_full_cycle()
                 log_json(f"Cycle {cycle} completed")
                 time.sleep(300)
@@ -115,7 +112,7 @@ def run_dashboard():
 
 
 def main():
-    log_json("🚀 ULTIMATE TRADING PLATFORM - LAUNCHING (LIVE BROKER)")
+    log_json("TRADING PLATFORM - LAUNCHING (LIVE BROKER)")
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
     time.sleep(2)
@@ -124,4 +121,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# redeploy trigger 1785048759
