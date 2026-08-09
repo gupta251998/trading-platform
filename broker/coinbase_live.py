@@ -129,3 +129,16 @@ class CoinbaseLiveBroker:
                 "message": f"place_market_order exception for {symbol}: {e}"
             }), flush=True)
             return None
+
+    def get_holding_value_usd(self, currency, current_price=None):
+        """Return quantity held of this currency on real Coinbase account
+        (or USD value if current_price is supplied)."""
+        for acc in self.get_accounts():
+            acc = _to_dict(acc)
+            if acc.get("currency") == currency:
+                bal = _to_dict(acc.get("available_balance", {}))
+                qty = float(bal.get("value", 0))
+                if current_price:
+                    return qty * current_price
+                return qty
+        return 0.0
