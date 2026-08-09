@@ -28,6 +28,40 @@ def log_json(message, level="INFO"):
     print(json.dumps({"timestamp": timestamp, "level": level, "message": message}), flush=True)
 
 
+def reconcile_existing_holdings(broker, portfolio, symbols, log_json):
+    """On startup, check real Coinbase balances and register any holdings
+    not already tracked in the in-memory portfolio, so check_exits() can manage them."""
+    try:
+        for symbol in symbols:
+            base_currency = symbol.split("-")[0]
+            if symbol in portfolio.positions:
+                continue
+            if not hasattr(broker, "get_holding_value_usd"):
+                continue
+            qty = broker.get_holding_value_usd(base_currency)
+            if qty and qty > 0.0001:
+                try:
+                    candles = broker.get_candles(symbol, granularity="ONE_HOUR", limit=5)
+                    if not candles:
+                        continue
+                    current_price = candles[-1]["close"]
+                    stop_loss = current_price * 0.98
+                    profit_target = current_price * 1.02
+                    portfolio.open_position(
+                        symbol=symbol,
+                        quantity=qty,
+                        fill_price=current_price,
+                        strategy_name="reconciled_existing",
+                        stop_loss=stop_loss,
+                        profit_target=profit_target,
+                    )
+                    log_json(f"RECONCILED existing holding: {symbol} qty={qty:.6f} @ approx ${current_price:.6f}, stop=${stop_loss:.6f}, target=${profit_target:.6f}")
+                except Exception as e:
+                    log_json(f"Failed to reconcile {symbol}: {e}", "ERROR")
+    except Exception as e:
+        log_json(f"Reconciliation error: {e}", "ERROR")
+
+
 def run_scheduler():
     log_json("Starting trading system...")
     try:
@@ -75,6 +109,9 @@ def run_scheduler():
         log_json("=" * 80)
 
         strategy = UltimateAggregator(strategies)
+
+        # Reconcile: register any existing real Coinbase holdings not yet tracked in portfolio
+        reconcile_existing_holdings(broker, portfolio, config.scheduler.symbols, log_json)
 
         scheduler = MultiSymbolScheduler(
             broker=broker,
