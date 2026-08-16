@@ -30,7 +30,6 @@ class MultiSymbolScheduler:
         self.cycle_count += 1
         self._log(f"=== Cycle {self.cycle_count} starting ({len(self.symbols)} symbols) ===")
 
-        # Check exits for open positions FIRST, before looking for new entries
         self.check_exits()
 
         for symbol in self.symbols:
@@ -39,14 +38,12 @@ class MultiSymbolScheduler:
             except Exception as e:
                 self._log(f"Error processing {symbol}: {e}", "ERROR")
 
-    # ---- Exit checking ---------------------------------------------------
-
     def check_exits(self):
         """Check stop-loss and profit-target for every open position, sell if triggered."""
         open_symbols = list(self.portfolio.positions.keys())
         for symbol in open_symbols:
             try:
-                candles = self.broker.get_candles(symbol, granularity=self.granularity, limit=5)
+                candles = self.broker.get_candles(symbol, granularity=self.granularity, limit=30)
                 if not candles:
                     continue
                 current_price = candles[-1]["close"]
@@ -83,13 +80,11 @@ class MultiSymbolScheduler:
                 self._log(f"SELL EXECUTED (PAPER): {symbol} qty={position.quantity:.6f} @ ${current_price:.6f} ({exit_reason})")
 
             closed_trade = self.portfolio.close_position(symbol, current_price, exit_reason)
-            pnl = closed_trade.pnl() if closed_trade else 0
+            pnl = closed_trade.pnl if closed_trade else 0
             self._log(f"Position closed: {symbol} PnL=${pnl:.4f}")
 
         except Exception as e:
             self._log(f"Error closing position {symbol}: {e}", "ERROR")
-
-    # ---- Entry / signal processing ----------------------------------------
 
     def process_symbol(self, symbol):
         try:

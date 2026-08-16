@@ -41,8 +41,9 @@ def reconcile_existing_holdings(broker, portfolio, symbols, log_json):
             qty = broker.get_holding_value_usd(base_currency)
             if qty and qty > 0.0001:
                 try:
-                    candles = broker.get_candles(symbol, granularity="ONE_HOUR", limit=5)
+                    candles = broker.get_candles(symbol, granularity="ONE_HOUR", limit=30)
                     if not candles:
+                        log_json(f"Could not reconcile {symbol}: no recent candle data", "ERROR")
                         continue
                     current_price = candles[-1]["close"]
                     stop_loss = current_price * 0.98
@@ -110,7 +111,6 @@ def run_scheduler():
 
         strategy = UltimateAggregator(strategies)
 
-        # Reconcile: register any existing real Coinbase holdings not yet tracked in portfolio
         reconcile_existing_holdings(broker, portfolio, config.scheduler.symbols, log_json)
 
         scheduler = MultiSymbolScheduler(
@@ -158,4 +158,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# cache-bust 1786305584

@@ -36,6 +36,19 @@ class CoinbaseLiveBroker:
                 return float(bal.get("value", 0))
         return 0.0
 
+    def get_holding_value_usd(self, currency, current_price=None):
+        """Return quantity held of this currency on real Coinbase account
+        (or USD value if current_price is supplied)."""
+        for acc in self.get_accounts():
+            acc = _to_dict(acc)
+            if acc.get("currency") == currency:
+                bal = _to_dict(acc.get("available_balance", {}))
+                qty = float(bal.get("value", 0))
+                if current_price:
+                    return qty * current_price
+                return qty
+        return 0.0
+
     def get_candles(self, symbol, granularity="ONE_HOUR", limit=100):
         granularity_seconds = {
             "ONE_MINUTE": 60, "FIVE_MINUTE": 300, "FIFTEEN_MINUTE": 900,
@@ -75,13 +88,22 @@ class CoinbaseLiveBroker:
         return candles
 
     def get_product_min_size(self, symbol):
-        """Fetch minimum quote size Coinbase requires for this product"""
         try:
             product = _to_dict(self.client.get_product(product_id=symbol))
             quote_min = product.get("quote_min_size")
             return float(quote_min) if quote_min else 1.0
         except Exception:
             return 1.0
+
+    def round_to_increment(self, value, increment):
+        """Round a quantity DOWN to the nearest valid increment Coinbase requires."""
+        if increment is None or increment == 0:
+            return value
+        import decimal
+        d_value = decimal.Decimal(str(value))
+        d_increment = decimal.Decimal(str(increment))
+        steps = (d_value / d_increment).to_integral_value(rounding=decimal.ROUND_DOWN)
+        return float(steps * d_increment)
 
     def place_market_order(self, symbol, side, quote_size=None, base_size=None):
         """Place a real market order. Explicitly checks Coinbase's 'success' field —
@@ -90,7 +112,13 @@ class CoinbaseLiveBroker:
         if side.upper() == "BUY":
             order_config = {"market_market_ioc": {"quote_size": str(quote_size)}}
         else:
-            order_config = {"market_market_ioc": {"base_size": str(base_size)}}
+            try:
+                product = _to_dict(self.client.get_product(product_id=symbol))
+                base_increment = float(product.get("base_increment", 0.00000001))
+            except Exception:
+                base_increment = 0.00000001
+            rounded_base_size = self.round_to_increment(float(base_size), base_increment)
+            order_config = {"market_market_ioc": {"base_size": str(rounded_base_size)}}
 
         client_order_id = f"bot_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
 
@@ -129,16 +157,3 @@ class CoinbaseLiveBroker:
                 "message": f"place_market_order exception for {symbol}: {e}"
             }), flush=True)
             return None
-
-    def get_holding_value_usd(self, currency, current_price=None):
-        """Return quantity held of this currency on real Coinbase account
-        (or USD value if current_price is supplied)."""
-        for acc in self.get_accounts():
-            acc = _to_dict(acc)
-            if acc.get("currency") == currency:
-                bal = _to_dict(acc.get("available_balance", {}))
-                qty = float(bal.get("value", 0))
-                if current_price:
-                    return qty * current_price
-                return qty
-        return 0.0
