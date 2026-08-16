@@ -18,6 +18,8 @@ class MultiSymbolScheduler:
 
         self.fixed_trade_size_usd = float(os.getenv("FIXED_TRADE_SIZE_USD", "2.00"))
         self.max_concurrent_positions = int(os.getenv("MAX_CONCURRENT_POSITIONS", "3"))
+        self.daily_loss_limit = float(os.getenv("DAILY_LOSS_LIMIT", "2.00"))
+        self.trading_halted_today = False
 
     def _log(self, message, level="INFO"):
         print(json.dumps({
@@ -31,6 +33,15 @@ class MultiSymbolScheduler:
         self._log(f"=== Cycle {self.cycle_count} starting ({len(self.symbols)} symbols) ===")
 
         self.check_exits()
+
+        daily_pnl = self.portfolio.daily_pnl() if hasattr(self.portfolio, "daily_pnl") else 0
+        if daily_pnl <= -abs(self.daily_loss_limit):
+            if not self.trading_halted_today:
+                self._log(f"DAILY LOSS LIMIT HIT: realized P&L today is ${daily_pnl:.4f}, limit is -${self.daily_loss_limit:.2f}. Halting new trades until UTC midnight.", "ERROR")
+                send_telegram(f"DAILY LOSS LIMIT HIT\nRealized P&L today: ${daily_pnl:.4f}\nLimit: -${self.daily_loss_limit:.2f}\nNew trades paused. Existing positions still monitored for exits.")
+                self.trading_halted_today = True
+        else:
+            self.trading_halted_today = False
 
         for symbol in self.symbols:
             try:
@@ -88,6 +99,9 @@ class MultiSymbolScheduler:
 
     def process_symbol(self, symbol):
         try:
+            if self.trading_halted_today:
+                return
+
             if symbol in self.portfolio.positions:
                 return
 

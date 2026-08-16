@@ -93,6 +93,10 @@ def run_scheduler():
         starting_cash = usdt_balance if usdt_balance > 0 else config.scheduler.starting_cash
         portfolio = PaperPortfolio(starting_cash=starting_cash)
 
+        import shared_state
+        shared_state.set_portfolio(portfolio)
+        shared_state.set_broker(broker)
+
         strategies = [
             GridTradingStrategy(),
             ScalpingStrategy(),
