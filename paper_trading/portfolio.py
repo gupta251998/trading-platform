@@ -168,3 +168,36 @@ class PaperPortfolio:
         )
         self.positions[symbol] = position
         return position
+
+    def daily_pnl(self) -> float:
+        """Sum realized P&L of trades closed today (UTC)."""
+        today = datetime.utcnow().date()
+        return sum(
+            t.pnl for t in self.closed_trades
+            if t.closed_at.date() == today
+        )
+
+    def win_rate_stats(self) -> dict:
+        """Real performance stats from actual closed trades."""
+        if not self.closed_trades:
+            return {
+                "total_trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "win_rate_pct": None,
+                "avg_win": None,
+                "avg_loss": None,
+                "total_realized_pnl": 0.0,
+            }
+        wins = [t.pnl for t in self.closed_trades if t.pnl > 0]
+        losses = [t.pnl for t in self.closed_trades if t.pnl <= 0]
+        total = len(self.closed_trades)
+        return {
+            "total_trades": total,
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate_pct": round(len(wins) / total * 100, 1) if total else None,
+            "avg_win": round(sum(wins) / len(wins), 4) if wins else None,
+            "avg_loss": round(sum(losses) / len(losses), 4) if losses else None,
+            "total_realized_pnl": round(sum(t.pnl for t in self.closed_trades), 4),
+        }
