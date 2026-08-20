@@ -169,10 +169,22 @@ def run_dashboard():
     uvicorn.run("dashboard.app:app", host="0.0.0.0", port=port, log_level="info")
 
 
+def run_telegram_commands():
+    try:
+        from notifications.telegram_commands import run_command_listener
+        run_command_listener()
+    except Exception as e:
+        log_json(f"Telegram command listener failed to start: {e}", "ERROR")
+
+
 def main():
     log_json("TRADING PLATFORM - LAUNCHING (LIVE BROKER)")
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
+
+    telegram_thread = threading.Thread(target=run_telegram_commands, daemon=True)
+    telegram_thread.start()
+
     time.sleep(2)
     run_dashboard()
 
