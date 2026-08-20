@@ -75,10 +75,19 @@ class MultiSymbolScheduler:
             is_live = hasattr(self.broker, "place_market_order") and not getattr(self.broker, "paper_mode", True)
 
             if is_live:
+                base_currency = symbol.split("-")[0]
+                real_qty = position.quantity
+                if hasattr(self.broker, "get_holding_value_usd"):
+                    actual_available = self.broker.get_holding_value_usd(base_currency)
+                    if actual_available and actual_available > 0:
+                        real_qty = min(position.quantity, actual_available)
+                        if real_qty < position.quantity:
+                            self._log(f"{symbol}: bot tracked {position.quantity:.8f} but real balance is {actual_available:.8f}, selling actual available amount", "INFO")
+
                 result = self.broker.place_market_order(
                     symbol=symbol,
                     side="SELL",
-                    base_size=str(position.quantity)
+                    base_size=str(real_qty)
                 )
                 if not result:
                     self._log(f"SELL order REJECTED for {symbol} - position remains open", "ERROR")
@@ -165,9 +174,16 @@ class MultiSymbolScheduler:
             else:
                 self._log(f"TRADE EXECUTED (PAPER): {signal.symbol} BUY ${position_size_usd:.2f}")
 
+            actual_quantity = quantity
+            if is_live and hasattr(self.broker, "get_holding_value_usd"):
+                base_currency = signal.symbol.split("-")[0]
+                real_balance = self.broker.get_holding_value_usd(base_currency)
+                if real_balance and real_balance > 0:
+                    actual_quantity = real_balance
+
             self.portfolio.open_position(
                 symbol=signal.symbol,
-                quantity=quantity,
+                quantity=actual_quantity,
                 fill_price=signal.entry_price,
                 strategy_name=signal.strategy_name,
                 stop_loss=signal.stop_loss,
