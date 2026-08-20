@@ -94,6 +94,11 @@ class PaperPortfolio:
             strategy_name=strategy_name,
         )
         self.positions[symbol] = position
+        try:
+            from persistence import position_store
+            position_store.save_position(symbol, quantity, fill_price, stop_loss, profit_target, strategy_name, position.opened_at)
+        except Exception:
+            pass
         return position
 
     def close_position(self, symbol: str, fill_price: float, exit_reason: str = "manual") -> ClosedTrade:
@@ -118,6 +123,16 @@ class PaperPortfolio:
             exit_reason=exit_reason,
         )
         self.closed_trades.append(trade)
+        try:
+            from persistence import position_store
+            position_store.delete_position(symbol)
+            position_store.save_closed_trade(
+                symbol, trade.strategy_name, trade.quantity, trade.entry_price,
+                trade.exit_price, trade.opened_at, trade.closed_at, trade.fee_paid,
+                trade.pnl, trade.exit_reason
+            )
+        except Exception:
+            pass
         return trade
 
     # ---- Risk management checks (called each price update) -----------
@@ -167,6 +182,11 @@ class PaperPortfolio:
             strategy_name=strategy_name,
         )
         self.positions[symbol] = position
+        try:
+            from persistence import position_store
+            position_store.save_position(symbol, quantity, fill_price, stop_loss, profit_target, strategy_name, position.opened_at)
+        except Exception:
+            pass
         return position
 
     def daily_pnl(self) -> float:

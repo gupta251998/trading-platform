@@ -115,6 +115,23 @@ def run_scheduler():
 
         strategy = UltimateAggregator(strategies)
 
+        try:
+            from persistence import position_store
+            position_store.ensure_tables()
+            saved_positions = position_store.load_all_positions()
+            for sp in saved_positions:
+                portfolio.register_existing_holding(
+                    symbol=sp["symbol"],
+                    quantity=sp["quantity"],
+                    fill_price=sp["entry_price"],
+                    strategy_name=sp["strategy_name"],
+                    stop_loss=sp["stop_loss"],
+                    profit_target=sp["profit_target"],
+                )
+                log_json(f"LOADED persisted position: {sp['symbol']} qty={sp['quantity']:.6f} @ entry ${sp['entry_price']:.6f} (original stop/target preserved)")
+        except Exception as e:
+            log_json(f"Could not load persisted positions: {e}", "ERROR")
+
         reconcile_existing_holdings(broker, portfolio, config.scheduler.symbols, log_json)
 
         scheduler = MultiSymbolScheduler(
