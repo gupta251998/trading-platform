@@ -131,8 +131,14 @@ class PaperPortfolio:
                 trade.exit_price, trade.opened_at, trade.closed_at, trade.fee_paid,
                 trade.pnl, trade.exit_reason
             )
-        except Exception:
-            pass
+        except Exception as e:
+            import json as _json
+            from datetime import datetime as _dt, timezone as _tz
+            print(_json.dumps({
+                "timestamp": _dt.now(_tz.utc).isoformat(),
+                "level": "ERROR",
+                "message": f"Failed to persist closed trade for {symbol}: {e}"
+            }), flush=True)
         return trade
 
     # ---- Risk management checks (called each price update) -----------

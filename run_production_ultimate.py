@@ -132,6 +132,31 @@ def run_scheduler():
         except Exception as e:
             log_json(f"Could not load persisted positions: {e}", "ERROR")
 
+        try:
+            from persistence import position_store
+            from paper_trading.portfolio import ClosedTrade
+            from broker.types import OrderSide
+            saved_trades = position_store.load_all_closed_trades()
+            for row in saved_trades:
+                symbol, strategy_name, quantity, entry_price, exit_price, opened_at, closed_at, fee_paid, pnl, exit_reason = row
+                trade = ClosedTrade(
+                    symbol=symbol,
+                    strategy_name=strategy_name or "",
+                    side=OrderSide.SELL,
+                    quantity=quantity,
+                    entry_price=entry_price,
+                    exit_price=exit_price,
+                    opened_at=opened_at,
+                    closed_at=closed_at,
+                    fee_paid=fee_paid,
+                    exit_reason=exit_reason or "unknown",
+                )
+                portfolio.closed_trades.append(trade)
+            if saved_trades:
+                log_json(f"LOADED {len(saved_trades)} persisted closed trade(s) from database")
+        except Exception as e:
+            log_json(f"Could not load persisted closed trades: {e}", "ERROR")
+
         reconcile_existing_holdings(broker, portfolio, config.scheduler.symbols, log_json)
 
         scheduler = MultiSymbolScheduler(
